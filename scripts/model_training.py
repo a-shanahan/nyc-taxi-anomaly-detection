@@ -1,22 +1,59 @@
 import pandas as pd
 from tensorflow.keras import layers, losses
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+import os
+import re
+import numpy as np
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
-from .autoencoder import *
+from autoencoder import *
 
 # Check presence of GPU
 gpu = len(tf.config.list_physical_devices('GPU')) > 0
 print("GPU is", "available" if gpu else "NOT AVAILABLE")
 
-file = '/data/parDF.parquet/pickup_weekday=1/part-00002-63bfa723-e7d3-4d13-9320-40b06dbd7fc2.c000.snappy.parquet'
+root_dir = 'data/parDF.parquet'
+files = []
+# Walk data directory for parquet files
+for directory, subdirlist, filelist in os.walk(root_dir):
+    for f in filelist:
+        if re.search('parquet$', f):
+            rel_dir = os.path.relpath(directory, root_dir)
+            files.append(os.path.join(directory, f))
 
-df = pd.read_parquet(file, engine='pyarrow')
-X_train, X_test = train_test_split(df, test_size=0.33, random_state=42)
+# Split files into train test
+train_file_names, test_file_names = train_test_split(files, test_size=0.2, random_state=42)
+
+
+# Read in files as data generator as too large to fit in memeory
+def data_generator(file_list, b_size=1):
+    i = 0
+    while True:
+        if i * b_size >= len(file_list):
+            i = 0
+            np.random.shuffle(file_list)
+        else:
+            file = file_list[i]
+            tmp = pd.read_parquet(file.decode('utf-8'), engine='pyarrow')
+            dta = np.asarray(tmp).reshape(len(tmp), 1, 64)
+            yield dta, dta
+            i = i + 1
+
+
+# Create tensorflow datasets using generator
+batch_size = 1
+train_dataset = tf.data.Dataset.from_generator(data_generator, args=[train_file_names, batch_size],
+                                               output_types=(tf.float32, tf.float32),
+                                               output_shapes=((None, 1, 64), (None, 1, 64)))
+
+test_dataset = tf.data.Dataset.from_generator(data_generator, args=[test_file_names, batch_size],
+                                              output_types=(tf.float32, tf.float32),
+                                              output_shapes=((None, 1, 64), (None, 1, 64)))
 
 latent_dim = 8
 autoencoder = Autoencoder(latent_dim)
 
+# Define model save params
 cp = ModelCheckpoint(filepath="autoencoder_fraud.tf",
                      mode='min',
                      monitor='val_loss',
@@ -24,7 +61,7 @@ cp = ModelCheckpoint(filepath="autoencoder_fraud.tf",
                      save_format="tf",
                      save_best_only=True)
 
-# define our early stopping
+# Define early stopping
 early_stop = EarlyStopping(
     monitor='val_loss',
     min_delta=0.001,
@@ -35,16 +72,19 @@ early_stop = EarlyStopping(
 
 autoencoder.compile(optimizer='adam', loss=losses.MeanSquaredError())
 
-history = autoencoder.fit(X_train, X_train,
+history = autoencoder.fit(train_dataset,
+                          steps_per_epoch=len(train_file_names),
+                          validation_steps=len(test_file_names),
                           batch_size=128,
-                          validation_data=(X_test, X_test),
+                          validation_data=test_dataset,
                           callbacks=[cp, early_stop],
-                          epochs=3).history
+                          epochs=15).history
 
+# Plot training loss
 plt.plot(history['loss'], linewidth=2, label='Train')
 plt.plot(history['val_loss'], linewidth=2, label='Test')
 plt.legend(loc='upper right')
 plt.title('Model loss')
 plt.ylabel('Loss')
 plt.xlabel('Epoch')
-plt.show()
+plt.savefig('../graphs/TrainingLoss.png')
