@@ -14,9 +14,9 @@ HADOOP_VERSION=3 \
 SPARK_HOME=/opt/spark \
 PYTHONHASHSEED=1 \
 PATH=$PATH:$SPARK_HOME/bin:$SPARK_HOME/sbin \
-PYSPARK_PYTHON=/usr/bin/python3 \
-PYSPARK_DRIVER_PYTHON='jupyter' \
-PYSPARK_DRIVER_PYTHON_OPTS='notebook --ip=0.0.0.0 --no-browser --port=8888 --allow-root'
+PYSPARK_PYTHON=/usr/bin/python3
+#PYSPARK_DRIVER_PYTHON='jupyter' \
+#PYSPARK_DRIVER_PYTHON_OPTS='notebook --ip=0.0.0.0 --no-browser --port=8888 --allow-root'
 
 COPY . .
 

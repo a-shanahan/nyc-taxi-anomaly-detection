@@ -24,6 +24,20 @@ for directory, subdirlist, filelist in os.walk(root_dir):
 # Split files into train test
 train_file_names, test_file_names = train_test_split(files, test_size=0.2, random_state=42)
 
+test_file_names, val_file_names = train_test_split(test_file_names, test_size=0.2, random_state=42)
+
+with open('data/train_files.txt', 'w') as f:
+    for line in train_file_names:
+        f.write(f"{line}\n")
+
+with open('data/test_files.txt', 'w') as f:
+    for line in test_file_names:
+        f.write(f"{line}\n")
+
+with open('data/val_files.txt', 'w') as f:
+    for line in val_file_names:
+        f.write(f"{line}\n")
+
 
 # Read in files as data generator as too large to fit in memeory
 def data_generator(file_list, b_size=1):
@@ -35,7 +49,7 @@ def data_generator(file_list, b_size=1):
         else:
             file = file_list[i]
             tmp = pd.read_parquet(file.decode('utf-8'), engine='pyarrow')
-            dta = np.asarray(tmp).reshape(len(tmp), 1, 64)
+            dta = np.asarray(tmp).reshape(len(tmp), 1, 56)
             yield dta, dta
             i = i + 1
 
@@ -44,11 +58,11 @@ def data_generator(file_list, b_size=1):
 batch_size = 1
 train_dataset = tf.data.Dataset.from_generator(data_generator, args=[train_file_names, batch_size],
                                                output_types=(tf.float32, tf.float32),
-                                               output_shapes=((None, 1, 64), (None, 1, 64)))
+                                               output_shapes=((None, 1, 56), (None, 1, 56)))
 
 test_dataset = tf.data.Dataset.from_generator(data_generator, args=[test_file_names, batch_size],
                                               output_types=(tf.float32, tf.float32),
-                                              output_shapes=((None, 1, 64), (None, 1, 64)))
+                                              output_shapes=((None, 1, 56), (None, 1, 56)))
 
 latent_dim = 8
 autoencoder = Autoencoder(latent_dim)
@@ -65,7 +79,7 @@ cp = ModelCheckpoint(filepath="autoencoder_fraud.tf",
 early_stop = EarlyStopping(
     monitor='val_loss',
     min_delta=0.001,
-    patience=10,
+    patience=3,
     verbose=1,
     mode='min',
     restore_best_weights=True)

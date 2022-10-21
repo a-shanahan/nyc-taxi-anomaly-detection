@@ -37,6 +37,11 @@ local browser using the ```0.0.0.0``` ip address.
 Data can be downloaded using the scripts found in [scripts](scripts/data_download) directory. These are the 
 same as those detailed in this [repo](https://github.com/toddwschneider/nyc-taxi-data)
 
+### Data Processing
+```shell
+spark-submit --master spark://spark-master:7077 --driver-memory 3G --executor-memory 3G /scripts/data_transformation.py
+```
+
 ## Anomaly Detection
 
 A simple Autoencoder is used to detect anomalous taxi journeys. The architecture and training 

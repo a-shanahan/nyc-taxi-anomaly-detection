@@ -1,19 +1,27 @@
 import glob
+import random
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 from pyspark.sql.types import FloatType
 from pyspark.ml.feature import MinMaxScaler, VectorAssembler
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import OneHotEncoder, StringIndexer
+from pyspark.ml.functions import vector_to_array
 
-files = [x for x in glob.glob('/data/*.parquet')]
+files = [x for x in glob.glob('/data/raw_data/*.parquet')]
+
+# Shuffle files
+random.shuffle(files)
+
+with open('/data/processed_files.txt', 'w') as f:
+    for line in files[0:6]:
+        f.write(f"{line}\n")
 
 spark = SparkSession.builder \
-    .master("local") \
     .appName("NYC") \
     .getOrCreate()
 
-parDF = spark.read.parquet(files[1])
+parDF = spark.read.parquet(*files[0:6])
 
 keep = ['tpep_dropoff_datetime', 'tpep_pickup_datetime',
         'PULocationID', 'DOLocationID',
@@ -36,7 +44,8 @@ parDF = parDF.filter(parDF['trip_distance'] < 3).filter(parDF['trip_duration'].b
 # Extract hour and weekday from timestamp
 parDF = parDF.withColumn('pickup_hour', hour('tpep_pickup_datetime'))
 parDF = parDF.withColumn('pickup_weekday', dayofweek('tpep_pickup_datetime'))
-# parDF = parDF.withColumn('pickup_month', month('tpep_pickup_datetime'))
+# Parition data by month
+parDF = parDF.withColumn('pickup_month', month('tpep_pickup_datetime'))
 
 # Don't need start/finish timestamp so drop
 drop_cols = ['tpep_dropoff_datetime', 'tpep_pickup_datetime']
@@ -50,7 +59,7 @@ journey_df = parDF.groupBy('journey').count()
 
 # This needs to be saved as a lookup for use during inference
 journey_df = journey_df.withColumn('journeyFreq', format_number(journey_df['count'] / parDF.count(), 8))
-journey_df.write..parquet('/data/journey_counts.parquet')
+journey_df.write.parquet('/data/journey_counts.parquet')
 
 
 # Convert Journey ID to numeric value
@@ -74,7 +83,10 @@ assembler = [VectorAssembler(inputCols=[col], outputCol=col + '_vec') for col in
 scale = [MinMaxScaler(inputCol=col + '_vec', outputCol=col + '_scaled') for col in to_scale]
 pipe = Pipeline(stages=assembler + scale)
 
-parDF = pipe.fit(parDF).transform(parDF)
+scale_model = pipe.fit(parDF)
+scale_model.save("/data/pipelines/scale_pipeline")
+
+parDF = scale_model.transform(parDF)
 
 # Drop unwanted columns
 parDF = parDF.drop(*[col + '_vec' for col in to_scale])
@@ -92,14 +104,18 @@ encoders = [OneHotEncoder(dropLast=False, inputCol=indexer.getOutputCol(),
 assembler = VectorAssembler(inputCols=[encoder.getOutputCol() for encoder in encoders], outputCol="features")
 pipeline = Pipeline(stages=indexers + encoders + [assembler])
 
-parDF = pipeline.fit(parDF).transform(parDF)
+one_hot_model = pipeline.fit(parDF)
+one_hot_model.save("/data/pipelines/one_hot_pipeline")
+
+parDF = one_hot_model.transform(parDF)
+
+row = parDF.select("features").head()
+no_features = [i.size for i in row(0).asDict()][0]
 
 # Drop unwanted columns
 drop_cols_1 = [col + '_indexed' for col in one_hot]
 drop_cols_2 = [col + '_indexed_encoded' for col in one_hot]
 
-# Use weekday to partition data
-one_hot.remove('pickup_weekday')
 drop_cols_3 = drop_cols_1 + drop_cols_2 + to_scale + one_hot
 parDF = parDF.drop(*drop_cols_3)
 
@@ -107,7 +123,7 @@ parDF = parDF.drop(*drop_cols_3)
 firstelement = udf(lambda v: float(v[0]), FloatType())
 
 for c in parDF.columns:
-    if c != 'journeyFreq' and c != 'features' and c != 'pickup_weekday' and c != 'features':
+    if c != 'journeyFreq' and c != 'features' and c != 'pickup_month' and c != 'features':
         parDF = parDF.withColumn(c, firstelement(c))
 
 # One Hot encoding produces sparse vector, convert to array/
@@ -115,8 +131,8 @@ for c in parDF.columns:
 parDF = parDF.withColumn("features", vector_to_array('features'))
 
 # Extract values from array and store as columns
-parDF = parDF.select(*parDF.columns, *[parDF.features[i].cast(FloatType()) for i in range(55)])
+parDF = parDF.select(*parDF.columns, *[parDF.features[i].cast(FloatType()) for i in range(no_features)])
 parDF = parDF.drop('features')
 
 # Write data and partition by weekday
-parDF.write.partitionBy("pickup_weekday").parquet('/data/parDF.parquet')
+parDF.write.partitionBy("pickup_month").parquet('/data/parDF.parquet')
