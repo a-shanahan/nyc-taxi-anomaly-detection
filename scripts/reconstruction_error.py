@@ -15,10 +15,11 @@ with open('data/val_files.txt', 'r') as f:
 
 file = str(random.choice(files))
 
-logger.info(f'Chosen validation file: {file}')
-
 tmp = pd.read_parquet(file, engine='pyarrow')
+
 dta = np.asarray(tmp).reshape(len(tmp), 1, 56).astype('float32')
+
+logger.info(f'Chosen validation file: {file}')
 
 encoded_data = autoencoder.encoder(dta).numpy()
 decoded_data = autoencoder.decoder(encoded_data).numpy()
@@ -32,8 +33,8 @@ plt.savefig('../graphs/InputReconstruction.png')
 
 plt.clf()
 
-reconstructions = autoencoder.predict(np.reshape(dta[0:len(tmp)], (len(tmp), 1, 56)))
-train_loss = tf.keras.losses.mae(reconstructions, np.reshape(dta[0:len(tmp)], (len(tmp), 1, 56)))
+reconstructions = autoencoder.predict(np.reshape(dta[0:2500], (2500, 1, 56)))
+train_loss = tf.keras.losses.mae(reconstructions, np.reshape(dta[0:2500], (2500, 1, 56)))
 
 # Calculate threshold as mean +1 std.
 threshold = np.mean(train_loss) + np.std(train_loss)
