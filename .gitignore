@@ -3,6 +3,7 @@
 scripts/autoencoder_fraud.tf
 scripts/data
 spark-cluster/apache-spark.tgz
+.DS_Store
 
 __pycache__/
 *.py[cod]
