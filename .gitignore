@@ -1,9 +1,10 @@
 # Byte-compiled / optimized / DLL files
 .idea/
-scripts/autoencoder_fraud.tf
-scripts/data
-spark-cluster/apache-spark.tgz
-.DS_Store
+model-development/scripts/autoencoder_fraud.tf
+model-development/scripts/data
+**apache-spark.tgz**
+**.DS_Store**
+**venv**
 
 __pycache__/
 *.py[cod]
