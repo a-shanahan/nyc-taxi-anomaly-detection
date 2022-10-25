@@ -1,7 +1,7 @@
 # Byte-compiled / optimized / DLL files
 .idea/
-model-development/scripts/autoencoder_fraud.tf
-model-development/scripts/data
+anomaly-development/scripts/autoencoder_fraud.tf
+anomaly-development/scripts/data
 **apache-spark.tgz**
 **.DS_Store**
 **venv**

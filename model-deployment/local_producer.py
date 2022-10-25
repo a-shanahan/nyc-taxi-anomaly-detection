@@ -7,7 +7,7 @@ import json
 
 producer = KafkaProducer(bootstrap_servers='localhost:29092')
 
-file = '../model-development/scripts/data/raw_data/yellow_tripdata_2019-01.parquet'
+file = '../anomaly-development/scripts/data/raw_data/yellow_tripdata_2019-01.parquet'
 
 tmp = pd.read_parquet(file, engine='pyarrow')
 tmp['tpep_pickup_datetime'] = tmp['tpep_pickup_datetime'].astype(str)

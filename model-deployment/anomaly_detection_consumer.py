@@ -8,7 +8,7 @@ import json
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
-autoencoder = tf.keras.models.load_model('../model-development/scripts/autoencoder_fraud.tf/')
+autoencoder = tf.keras.models.load_model('../anomaly-development/scripts/autoencoder_fraud.tf/')
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
