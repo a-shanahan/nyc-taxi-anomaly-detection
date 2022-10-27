@@ -1,5 +1,5 @@
 import random
-from typing import Tuple, Dict
+from typing import Tuple
 import gym
 from gym import spaces
 import pandas as pd
@@ -33,7 +33,7 @@ class AssignmentEnv(gym.Env):
 
         # Environment start/stop conditions
         self.total_allowable_loss = -100
-        self.max_profit = 2000
+        self.max_profit = 1500
 
         # Current state of the environment
 
@@ -59,12 +59,12 @@ class AssignmentEnv(gym.Env):
         self.spread_after = self.df_stats.Utilisation.max() - self.df_stats.Utilisation.min()
 
         # Penalise the model if an order is rejected
-        self.dropped_order_penalty = 75
+        self.dropped_order_penalty = 100
         self.late_penalty = 25
         self.unfair_penalty = 25
-        self.rejected_order_penalty = 10
+        self.rejected_order_penalty = 15
         self.late_threshold = -15
-        self.late_threshold = -45
+        self.extreme_late_threshold = -45
 
         self.pickup_durations = np.array([])  # Array to store the collection wait times
 
@@ -121,7 +121,7 @@ class AssignmentEnv(gym.Env):
             self.rejected_order / self.total_orders,  # Dropped order %,
             self.df_stats.Utilisation.max() - self.df_stats.Utilisation.min(),  # Spread of driver utilisation
             self.available_drivers / len(self.df_availability),  # No. of available drivers
-            self.late_pickup / self.total_orders  # No. of pickups longer than 15 mins
+            self.late_pickup / self.total_orders  # No. of pickups longer than 15mins
         ])
         return obs
 
@@ -315,16 +315,13 @@ class AssignmentEnv(gym.Env):
             else:
                 self.reward += self.unfair_penalty * 0.25
 
-        if reward is not None:
-            # Update driver status
-            if self.driver:
-                self._driver_assignment()
+            self._driver_assignment()
             return self.reward
         elif refuse:
-            return self.rejected_order_penalty
+            return -self.rejected_order_penalty
         else:
             # Order is unfulfilled
-            return self.dropped_order_penalty
+            return -self.dropped_order_penalty
 
     def step(self, action: npt.NDArray) -> Tuple:
         self.total_reward = 0
@@ -336,11 +333,13 @@ class AssignmentEnv(gym.Env):
         self.profit += self.total_reward  # Calculate running profit
         self.total_orders += 1  # Increment total orders
 
-        if self.profit <= self.total_allowable_loss or self.profit >= self.max_profit:
-            done = True  # If loss is too great  stop simulation
+        if self.profit <= self.total_allowable_loss:
+            return obs, self.profit, True, {"Agent action": action}
+
+        elif self.profit >= self.max_profit:
+            return obs, self.profit, True, {"Agent action": action}
         else:
-            done = False
-        return obs, self.total_reward, done, {"Agent action": action}
+            return obs, self.total_reward, False, {"Agent action": action}
 
     def reset(self):
         """

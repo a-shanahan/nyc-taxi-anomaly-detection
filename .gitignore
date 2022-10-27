@@ -5,9 +5,9 @@ anomaly-development/scripts/data
 **apache-spark.tgz**
 **.DS_Store**
 **venv**
-/assignment-development/data/
-/assignment-development/delivery_assignment_tensorboard
-/assignment-development/model
+/assignment_development/data/
+/assignment_development/delivery_assignment_tensorboard
+/assignment_development/model
 
 __pycache__/
 *.py[cod]

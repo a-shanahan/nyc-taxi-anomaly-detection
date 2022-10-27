@@ -3,9 +3,8 @@ import uuid
 import random
 from random import randrange
 import datetime
-from itertools import combinations_with_replacement
 
-number = 100
+number = 30
 df = pd.DataFrame({'Driver': [uuid.uuid4().hex for i in range(number)],
                    'Total_Free': [random.randint(0, 120) for i in range(number)],
                    'Total_Busy': [random.randint(0, 120) for i in range(number)],

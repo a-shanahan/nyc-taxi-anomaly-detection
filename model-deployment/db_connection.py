@@ -1,4 +1,3 @@
-# Module Imports
 import mysql.connector as connector
 from sqlalchemy import create_engine
 import sys
@@ -23,8 +22,8 @@ engine = create_engine(uri)
 # Get Cursor
 cursor = conn.cursor()
 
-df = pd.read_csv('../assignment-development/data/df_stats.csv', index_col=False)
-locations = pd.read_csv('../assignment-development/data/taxi_cords.csv', index_col=False)
+df = pd.read_csv('../assignment_development/data/df_stats.csv', index_col=False)
+locations = pd.read_csv('../assignment_development/data/taxi_cords.csv', index_col=False)
 
 df.to_sql('driver', con=engine, if_exists='replace')
 locations.to_sql('locations', con=engine, if_exists='replace')

@@ -11,7 +11,7 @@ locations = 'data/taxi_cords.csv'
 env = DummyVecEnv([lambda: AssignmentEnv(availability, stats, locations)])
 
 model = PPO('MlpPolicy', env, verbose=1, tensorboard_log="./delivery_assignment_tensorboard/", device='mps')
-model.learn(total_timesteps=5e4)
+model.learn(total_timesteps=5000)
 
 # save the model
 model.save("model/taxi-assigner")
