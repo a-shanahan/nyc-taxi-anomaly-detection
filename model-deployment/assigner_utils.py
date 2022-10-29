@@ -1,16 +1,45 @@
+import random
 import numpy as np
 import numpy.typing as npt
 import mysql.connector as connector
 from sqlalchemy import create_engine
 import sys
 from math import radians, cos, sin, asin, sqrt
+import pandas as pd
 
 
 class AssignerUtils:
-    def __init__(self):
+    def __init__(self, load=False):
+        self.late_threshold = 15
+        self.fulfilled_order = 1
+        self.dropped_order = 0
+        self.refuse_order = 0
+        self.late_pickup = 0
         self._db_connection()
+        if load:
+            self._load_data()
         self.order = {}
-        self.all_drivers = self._query_execute("select count(Driver) from availability")[0]
+        self.all_drivers = self._query_execute("select count(Driver) from availability")[0][0]
+
+    def _load_data(self):
+        stats = pd.read_csv('../assignment_development/data/df_stats.csv', index_col='Driver')
+        locations = pd.read_csv('../assignment_development/data/taxi_cords.csv', index_col='LocationID')
+        availability = pd.read_csv('../assignment_development/data/driver_availability.csv', index_col='Driver')
+
+        stats.to_sql('stats', con=self.engine, if_exists='replace')
+        locations.to_sql('locations', con=self.engine, if_exists='replace')
+        availability.to_sql('availability', con=self.engine, if_exists='replace')
+
+        stats.to_sql('stats', con=self.engine, if_exists='replace')
+        locations.to_sql('locations', con=self.engine, if_exists='replace')
+        availability.to_sql('availability', con=self.engine, if_exists='replace')
+
+        running_totals = pd.DataFrame({'fulfilled_order': [0],
+                                       'dropped_order': [0],
+                                       'rejected_order': [0],
+                                       'late_pickup': [0],
+                                       'refuse_order': [0]})
+        running_totals.to_sql('running_totals', con=self.engine, if_exists='replace')
 
     def _db_connection(self):
         try:
@@ -30,15 +59,15 @@ class AssignerUtils:
         # Get Cursor
         self.cursor = self.conn.cursor()
 
-    def _coordinate(self, coordinate, location):
-        query = "select " + coordinate + " from locations where LocationID = " + Location
+    def _coordinate(self, coordinate, location: int):
+        query = "select " + coordinate + " from locations where LocationID = '" + str(location) + "'"
         # executing cursor
         self.cursor.execute(query)
         # display all records
         results = self.cursor.fetchall()
-        return results[0]
+        return results[0][0]
 
-    def _haversine(self, PULocation: str, DOLocation: str, speed: float = 20.0) -> float:
+    def _haversine(self, PULocation: int, DOLocation: int, speed: float = 20.0) -> float:
         """
         Calculate the great circle distance in kilometers between two points
         on the earth (specified in decimal degrees)
@@ -66,44 +95,144 @@ class AssignerUtils:
         r = 6371  # Radius of earth in kilometers. Use 3956 for miles. Determines return value units.
         return ((c * r) / speed) * 60  # Convert to minutes
 
-    def customer_order(self, PULocation, DOLocation, pickup_time, fare):
+    def customer_order(self, new_order):
         """Build a customer order"""
-        self.order = {"pickup_location": PULocation}
-        self.order.update({"drop-off_location": DOLocation})
+        self.order = {"pickup_location": new_order.get('PULocation')}
+        self.order.update({"drop-off_location": new_order.get('DOLocation')})
         self.order.update(
-            {"pickup_time": pickup_time})  # Orders are ready to be picked up between 5 and 30 mins
+            {"pickup_time": new_order.get('pickup_time')})  # Orders are ready to be picked up between 5 and 30 mins
         est_duration = self._haversine(self.order['pickup_location'], self.order['drop-off_location'])
         self.order.update({"drop-off_time": est_duration})  # Estimated Duration
-        self.order.update({"fare": fare})
+        self.order.update({"fare": new_order.get('fare')})
+        return self._next_observation()
 
     def _query_execute(self, query):
         self.cursor.execute(query)
         return self.cursor.fetchall()
 
-    def _update_stats(self):
-        self.fulfilled_order = 0
-        self.total_orders = 0
-        self.dropped_order = 0
-        self.rejected_order = 0
-        self.late_pickup = 0
-
-    def next_observation(self) -> npt.NDArray:
+    def _next_observation(self) -> npt.NDArray:
         """Generate a customer order every timestep and store it as
         environment observations. These are normalised to be between 0-1."""
-        self.customer_order()  # Generate customer order
         # Identify available drivers
-        available_drivers = self._query_execute("select count(Driver) from availability where Available = Y")[0]
-        utilisation = self._query_execute("select MAX(Utilisation) - MIN(Utilisation) from drivers")[0]
+        available_drivers = self._query_execute("select count(Driver) from availability where Available = 'Y'")[0][0]
+        utilisation = self._query_execute("select MAX(Utilisation) - MIN(Utilisation) from stats")[0][0]
 
+        total_orders = self.fulfilled_order + self.dropped_order + self.refuse_order + self.late_pickup
         # Create obs and normalise to between 0-1
         obs = np.array([
-            self.fulfilled_order / self.total_orders,  # Fulfilled order %
+            self.fulfilled_order / total_orders,  # Fulfilled order %
             self.order.get("pickup_time") / 15,  # Max pickup time is 20 mins
             self.order.get("drop-off_time") / (30 + self.order.get("pickup_time")),
-            self.dropped_order / self.total_orders,  # Dropped order %,
-            self.rejected_order / self.total_orders,  # Dropped order %,
+            self.dropped_order / total_orders,  # Dropped order %,
+            self.refuse_order / total_orders,  # Dropped order %,
             utilisation,  # Spread of driver utilisation
             available_drivers / self.all_drivers,  # No. of available drivers
-            self.late_pickup / self.total_orders  # No. of pickups longer than 15 mins
+            self.late_pickup / total_orders  # No. of pickups longer than 15 mins
         ])
         return obs
+
+    def driver_assignment(self, assignment, driver, order=None):
+        """Once an order is assigned to a driver change their availability status.
+        This is to be run after every time step."""
+
+        self._query_execute("UPDATE availability SET Available = '" + assignment +
+                            "' WHERE Driver = '" + driver + "'")
+
+        # Drivers only become available when journey is completed
+        if assignment == 'Y':
+            self._query_execute("UPDATE stats SET Total_Fare = "
+                                "Total_Fare + '" + order.get("fare") +
+                                "' WHERE Driver = '" + driver + "'")
+            self._query_execute("UPDATE availability SET Location = '" +
+                                order.get('drop-off_location') +
+                                "' WHERE Driver = '" + driver + "'")
+
+    def random_driver_assignment(self):
+        """This algorithm picks any available driver"""
+
+        try:
+            result = self._query_execute("Select Driver, Location from availability where Available = 'Y'")
+            driver, driver_location = random.choice(result)
+            duration = self._haversine(driver_location, self.order['drop-off_location'])
+
+            # Extra reward given if order is picked up before estimated time
+            time_delta = self.order.get("pickup_time") - duration
+            if time_delta < self.late_threshold:
+                self._query_execute("UPDATE running_totals SET late_pickup = late_pickup + 1")
+                self.late_pickup = self._query_execute("Select late_pickup from running_totals")[0][0]
+                return driver, time_delta
+            else:
+                self._query_execute("UPDATE running_totals SET fulfilled_order = fulfilled_order + 1")
+                self.fulfilled_order = self._query_execute("Select fulfilled_order from running_totals")[0][0]
+                return driver, time_delta
+
+        except ValueError:
+            # If no driver is available then the order is treated as dropped
+            self._query_execute("UPDATE running_totals SET dropped_order = dropped_order + 1")
+            self.dropped_order = self._query_execute("Select dropped_order from running_totals")[0][0]
+            return None, None
+
+    def closest_driver_assignment(self):
+        """This algorithm picks the driver with the quickest lead time to pickup"""
+        results = self._query_execute("Select Driver, Location from availability where Available = 'Y'")
+        if len(results) > 0:
+            min_duration = None
+            driver = None
+            for free_driver, driver_location in results:
+                duration = self._haversine(driver_location, self.order['drop-off_location'])
+                if not min_duration:
+                    min_duration = duration
+                    driver = free_driver
+                elif duration < min_duration:
+                    min_duration = duration
+                    driver = free_driver
+
+            order_pickup_duration = min_duration
+            time_delta = self.order.get("pickup_time") - order_pickup_duration
+
+            if time_delta < self.late_threshold:
+                self._query_execute("UPDATE running_totals SET late_pickup = late_pickup + 1")
+                self.late_pickup = self._query_execute("Select late_pickup from running_totals")[0][0]
+                return driver, time_delta
+            else:
+                self._query_execute("UPDATE running_totals SET fulfilled_order = fulfilled_order + 1")
+                self.fulfilled_order = self._query_execute("Select fulfilled_order from running_totals")[0][0]
+                return driver, time_delta
+        else:
+            # If no driver is available then the order is treated as dropped
+            self._query_execute("UPDATE running_totals SET dropped_order = dropped_order + 1")
+            self.dropped_order = self._query_execute("Select dropped_order from running_totals")[0][0]
+            return None, None
+
+    def lowest_utilisation_driver_assignment(self):
+        """This algorithm picks the driver with the lowest earnings figure"""
+        results = self._query_execute("Select a.Driver, Location "
+                                      "from availability a "
+                                      "LEFT JOIN "
+                                      "stats s "
+                                      "ON a.Driver=s.Driver "
+                                      "where "
+                                      "s.Utilisation in (Select MIN(Utilisation) from stats)")
+        if len(results) > 0:
+            driver, driver_location = results[0]
+            duration = self._haversine(driver_location, self.order['drop-off_location'])
+            time_delta = self.order.get("pickup_time") - duration
+            if time_delta < self.late_threshold:
+                self._query_execute("UPDATE running_totals SET late_pickup = late_pickup + 1")
+                self.late_pickup = self._query_execute("Select late_pickup from running_totals")[0][0]
+                return driver, time_delta
+            else:
+                self._query_execute("UPDATE running_totals SET fulfilled_order = fulfilled_order + 1")
+                self.fulfilled_order = self._query_execute("Select fulfilled_order from running_totals")[0][0]
+                return driver, time_delta
+        else:
+            # If no driver is available then the order is treated as dropped
+            self._query_execute("UPDATE running_totals SET dropped_order = dropped_order + 1")
+            self.dropped_order = self._query_execute("Select dropped_order from running_totals")[0][0]
+            return None, None
+
+    def refuse(self):
+        """The model has the choice to reject the order before it is too late"""
+        self._query_execute("UPDATE running_totals SET refuse_order = refuse_order + 1")
+        self.refuse_order = self._query_execute("Select refuse_order from running_totals")[0][0]
+        return None, True
