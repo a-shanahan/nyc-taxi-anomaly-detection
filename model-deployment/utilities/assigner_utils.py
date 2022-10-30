@@ -180,7 +180,7 @@ class AssignerUtils:
             result = self._query_execute("Select Driver, Location from availability where Available = 'Y'")
             driver, driver_location = random.choice(result)
             duration = self._haversine(driver_location, self.order['drop-off_location'])
-            self.driver_assignment('Y', driver)
+            self.driver_assignment('N', driver)
             # Extra reward given if order is picked up before estimated time
             time_delta = self.order.get("pickup_time") - duration
             if time_delta < self.late_threshold:
@@ -218,7 +218,7 @@ class AssignerUtils:
 
             order_pickup_duration = min_duration
             time_delta = self.order.get("pickup_time") - order_pickup_duration
-            self.driver_assignment('Y', driver)
+            self.driver_assignment('N', driver)
             if time_delta < self.late_threshold:
                 self._query_execute("UPDATE running_totals SET late_pickup = late_pickup + 1")
                 self.late_pickup = self._query_execute("Select late_pickup from running_totals")[0][0]
@@ -249,7 +249,7 @@ class AssignerUtils:
             driver, driver_location = results[0]
             duration = self._haversine(driver_location, self.order['drop-off_location'])
             time_delta = self.order.get("pickup_time") - duration
-            self.driver_assignment('Y', driver)
+            self.driver_assignment('N', driver)
             if time_delta < self.late_threshold:
                 self._query_execute("UPDATE running_totals SET late_pickup = late_pickup + 1")
                 self.late_pickup = self._query_execute("Select late_pickup from running_totals")[0][0]

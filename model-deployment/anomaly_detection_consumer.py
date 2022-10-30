@@ -13,10 +13,6 @@ autoencoder = tf.keras.models.load_model('../anomaly-development/scripts/autoenc
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
-consumer = KafkaConsumer(bootstrap_servers='localhost:29092')
-producer = KafkaProducer(bootstrap_servers='localhost:29092')
-consumer.subscribe(['journey-finished'])
-
 
 def anomaly_detection(data, threshold=0.074):
     logger.info(f'uid: {data["uid"]}')
@@ -58,4 +54,7 @@ def start_consumer():
 
 
 if __name__ == '__main__':
+    consumer = KafkaConsumer(bootstrap_servers='localhost:29092')
+    producer = KafkaProducer(bootstrap_servers='localhost:29092')
+    consumer.subscribe(['journey-finished'])
     start_consumer()
