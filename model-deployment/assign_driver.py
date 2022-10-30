@@ -1,6 +1,16 @@
 from assigner_utils import *
 from stable_baselines3 import PPO
 import numpy as np
+import configparser
+
+configParser = configparser.ConfigParser()
+configFilePath = "data/db_config.txt"
+configParser.read(configFilePath)
+
+db_config = {'user': configParser['MariaDB']['user'],
+             'password': configParser['MariaDB']['password'],
+             'host': configParser['MariaDB']['host'],
+             'database': configParser['MariaDB']['database']}
 
 customer_order = {"PULocation": '1',
                   "DOLocation": '2',
@@ -9,7 +19,7 @@ customer_order = {"PULocation": '1',
 
 model = PPO.load("../assignment_development/model/taxi-assigner")
 
-assigner = AssignerUtils()
+assigner = AssignerUtils(db_config)
 
 # Generate order
 obs = assigner.customer_order(customer_order)

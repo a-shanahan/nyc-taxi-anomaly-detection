@@ -6,10 +6,12 @@ from sqlalchemy import create_engine
 import sys
 from math import radians, cos, sin, asin, sqrt
 import pandas as pd
+from typing import Tuple, Dict
 
 
 class AssignerUtils:
-    def __init__(self, load=False):
+    def __init__(self, config: Dict, load=False):
+        self.config = config
         self.late_threshold = 15
         self.fulfilled_order = 1
         self.dropped_order = 0
@@ -42,24 +44,32 @@ class AssignerUtils:
         running_totals.to_sql('running_totals', con=self.engine, if_exists='replace')
 
     def _db_connection(self):
+        """
+        Initialise connection to database
+        """
         try:
-            self.conn = connector.connect(
-                host="localhost",
-                user='newuser',
-                password='newpassword',
-                database="demo"
-            )
+            self.conn = connector.connect(host=self.config['host'],
+                                          user=self.config['user'],
+                                          password=self.config['password'],
+                                          database=self.config['database'])
         except Exception as e:
             print(f"Error connecting to MariaDB Platform: {e}")
             sys.exit(1)
 
-        uri = 'mysql+mysqlconnector://newuser:newpassword@localhost/demo'
+        uri = f"mysql+mysqlconnector://{self.config.get('user')}:{self.config.get('password')}@" \
+              f"{self.config.get('host')}/{self.config.get('database')}"
 
         self.engine = create_engine(uri)
         # Get Cursor
         self.cursor = self.conn.cursor()
 
-    def _coordinate(self, coordinate, location: int):
+    def _coordinate(self, coordinate: str, location: int) -> str:
+        """
+        Retrieve coordinate when given Location ID
+        :param coordinate: Either Latitude or Longitude
+        :param location: Location ID
+        :return: Coordinate
+        """
         query = "select " + coordinate + " from locations where LocationID = '" + str(location) + "'"
         # executing cursor
         self.cursor.execute(query)
@@ -95,8 +105,12 @@ class AssignerUtils:
         r = 6371  # Radius of earth in kilometers. Use 3956 for miles. Determines return value units.
         return ((c * r) / speed) * 60  # Convert to minutes
 
-    def customer_order(self, new_order):
-        """Build a customer order"""
+    def customer_order(self, new_order: Dict):
+        """
+        Build a customer order
+        :param new_order: New customer order
+        :return: Calls function to generate environment observations
+        """
         self.order = {"pickup_location": new_order.get('PULocation')}
         self.order.update({"drop-off_location": new_order.get('DOLocation')})
         self.order.update(
@@ -106,13 +120,21 @@ class AssignerUtils:
         self.order.update({"fare": new_order.get('fare')})
         return self._next_observation()
 
-    def _query_execute(self, query):
+    def _query_execute(self, query: str):
+        """
+        Execute query on database
+        :param query: SQL query
+        :return: Query results
+        """
         self.cursor.execute(query)
         return self.cursor.fetchall()
 
     def _next_observation(self) -> npt.NDArray:
-        """Generate a customer order every timestep and store it as
-        environment observations. These are normalised to be between 0-1."""
+        """
+        Generate a customer order every timestep and store it as
+        environment observations. These are normalised to be between 0-1.
+        :return: Normalised array containing environment observations
+        """
         # Identify available drivers
         available_drivers = self._query_execute("select count(Driver) from availability where Available = 'Y'")[0][0]
         utilisation = self._query_execute("select MAX(Utilisation) - MIN(Utilisation) from stats")[0][0]
@@ -131,30 +153,34 @@ class AssignerUtils:
         ])
         return obs
 
-    def driver_assignment(self, assignment, driver, order=None):
-        """Once an order is assigned to a driver change their availability status.
-        This is to be run after every time step."""
-
+    def driver_assignment(self, assignment: str, driver: str):
+        """
+        Once an order is assigned to a driver change their availability status.
+        :param assignment: Y or N depending on assignment
+        :param driver: Driver ID
+        """
         self._query_execute("UPDATE availability SET Available = '" + assignment +
                             "' WHERE Driver = '" + driver + "'")
 
         # Drivers only become available when journey is completed
         if assignment == 'Y':
             self._query_execute("UPDATE stats SET Total_Fare = "
-                                "Total_Fare + '" + order.get("fare") +
+                                "Total_Fare + '" + self.order.get("fare") +
                                 "' WHERE Driver = '" + driver + "'")
             self._query_execute("UPDATE availability SET Location = '" +
-                                order.get('drop-off_location') +
+                                self.order.get('drop-off_location') +
                                 "' WHERE Driver = '" + driver + "'")
 
-    def random_driver_assignment(self):
-        """This algorithm picks any available driver"""
-
+    def random_driver_assignment(self) -> Tuple:
+        """
+        This algorithm picks any available driver
+        :return: driver ID, time delta to order
+        """
         try:
             result = self._query_execute("Select Driver, Location from availability where Available = 'Y'")
             driver, driver_location = random.choice(result)
             duration = self._haversine(driver_location, self.order['drop-off_location'])
-
+            self.driver_assignment('Y', driver)
             # Extra reward given if order is picked up before estimated time
             time_delta = self.order.get("pickup_time") - duration
             if time_delta < self.late_threshold:
@@ -172,8 +198,11 @@ class AssignerUtils:
             self.dropped_order = self._query_execute("Select dropped_order from running_totals")[0][0]
             return None, None
 
-    def closest_driver_assignment(self):
-        """This algorithm picks the driver with the quickest lead time to pickup"""
+    def closest_driver_assignment(self) -> Tuple:
+        """
+        This algorithm picks the driver with the quickest lead time to pickup
+        :return: driver ID, time delta to order
+        """
         results = self._query_execute("Select Driver, Location from availability where Available = 'Y'")
         if len(results) > 0:
             min_duration = None
@@ -189,7 +218,7 @@ class AssignerUtils:
 
             order_pickup_duration = min_duration
             time_delta = self.order.get("pickup_time") - order_pickup_duration
-
+            self.driver_assignment('Y', driver)
             if time_delta < self.late_threshold:
                 self._query_execute("UPDATE running_totals SET late_pickup = late_pickup + 1")
                 self.late_pickup = self._query_execute("Select late_pickup from running_totals")[0][0]
@@ -204,8 +233,11 @@ class AssignerUtils:
             self.dropped_order = self._query_execute("Select dropped_order from running_totals")[0][0]
             return None, None
 
-    def lowest_utilisation_driver_assignment(self):
-        """This algorithm picks the driver with the lowest earnings figure"""
+    def lowest_utilisation_driver_assignment(self) -> Tuple:
+        """
+        This algorithm picks the driver with the lowest earnings figure
+        :return: driver ID, time delta to order
+        """
         results = self._query_execute("Select a.Driver, Location "
                                       "from availability a "
                                       "LEFT JOIN "
@@ -217,6 +249,7 @@ class AssignerUtils:
             driver, driver_location = results[0]
             duration = self._haversine(driver_location, self.order['drop-off_location'])
             time_delta = self.order.get("pickup_time") - duration
+            self.driver_assignment('Y', driver)
             if time_delta < self.late_threshold:
                 self._query_execute("UPDATE running_totals SET late_pickup = late_pickup + 1")
                 self.late_pickup = self._query_execute("Select late_pickup from running_totals")[0][0]
@@ -232,7 +265,9 @@ class AssignerUtils:
             return None, None
 
     def refuse(self):
-        """The model has the choice to reject the order before it is too late"""
+        """
+        The model has the choice to reject the order
+        """
         self._query_execute("UPDATE running_totals SET refuse_order = refuse_order + 1")
         self.refuse_order = self._query_execute("Select refuse_order from running_totals")[0][0]
         return None, True

@@ -1,0 +1,5 @@
+[MariaDB]
+host=localhost
+user=newuser
+password=newpassword
+database=demo
