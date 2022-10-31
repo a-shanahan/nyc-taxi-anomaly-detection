@@ -75,7 +75,13 @@ class AssignerUtils:
         self.cursor.execute(query)
         # display all records
         results = self.cursor.fetchall()
-        return results[0][0]
+        try:
+            return results[0][0]
+        except IndexError as e:
+            print(f"Database results error: {e}")
+            print(results)
+            print(f'Coordinate: {coordinate} Location: {location}')
+            sys.exit(1)
 
     def _haversine(self, PULocation: int, DOLocation: int, speed: float = 20.0) -> float:
         """
@@ -192,7 +198,7 @@ class AssignerUtils:
                 self.fulfilled_order = self._query_execute("Select fulfilled_order from running_totals")[0][0]
                 return driver, time_delta
 
-        except ValueError:
+        except IndexError:
             # If no driver is available then the order is treated as dropped
             self._query_execute("UPDATE running_totals SET dropped_order = dropped_order + 1")
             self.dropped_order = self._query_execute("Select dropped_order from running_totals")[0][0]

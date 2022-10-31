@@ -2,6 +2,7 @@ import logging
 import argparse
 import json
 import configparser
+import random
 from typing import Dict
 import numpy as np
 from kafka import KafkaConsumer, KafkaProducer
@@ -26,7 +27,7 @@ model = PPO.load("../assignment_development/model/taxi-assigner")
 assigner = AssignerUtils(db_config)
 
 
-def producer(topic: str, message: Dict):
+def producer_format(topic: str, message: Dict):
     """
     Send message to Kafka topic
     :param topic: Kafka Topic to send message
@@ -46,11 +47,12 @@ def start_decider():
                 for message in j:
                     driver = None
                     time_delta = None
-                    logger.info(f'Topic: "new-order" Value: {message.value}')
-                    customer_order = {"PULocation": message.value['PULocation'],
-                                      "DOLocation": message.value['DOLocation'],
-                                      "pickup_time": message.value['pickup_time'],
-                                      "fare": message.value['fare']}
+                    order = json.loads(message.value.decode('utf-8'))
+                    logger.info(f'Topic: "new-order" Value: {order}')
+                    customer_order = {"PULocation": order['PULocationID'],
+                                      "DOLocation": order['DOLocationID'],
+                                      "pickup_time": random.randint(5, 30),
+                                      "fare": order['fare_amount']}
                     # Generate current environment observation and choose driver
                     obs = assigner.customer_order(customer_order)
                     obs = np.reshape(obs, (1, 8))
@@ -66,27 +68,34 @@ def start_decider():
                         driver, time_delta = assigner.random_driver_assignment()
 
                     if refuse:
-                        msg = {'uid': message.value['uid'],
-                            'Response': 'refused',
+                        msg = {'uid': order['uid'],
+                               'Response': 'refused',
                                'Message': 'Sorry we are unable to take your order'}
-                        producer('customer_response', msg)
+                        producer_format('customer-response', msg)
                     elif not driver:
-                        msg = {'uid': message.value['uid'],
-                            'Response': 'busy',
+                        msg = {'uid': order['uid'],
+                               'Response': 'busy',
                                'Message': 'Sorry all our drivers are currently busy'}
-                        producer('customer_response', msg)
+                        producer_format('customer-response', msg)
                     else:
-                        msg = {'uid': message.value['uid'],
-                            'Response': 'accepted',
+                        msg = {'uid': order['uid'],
+                               'Response': 'accepted',
                                'Message': f'Your driver {driver} will be along in {time_delta} minutes'}
-                        producer('customer_response', msg)
+                        # Notify customer
+                        producer_format('customer-response', msg)
+                        # Hold driver for period of time before releasing journey details. Not needed in
+                        # production system
+                        hold_msg = {'order': order,
+                                    'driver': driver,
+                                    'time_delta': time_delta}
+                        producer_format('hold-driver', hold_msg)
         except NoBrokersAvailable as e:
             logger.debug(f"Error: {e}")
             pass
 
 
 if __name__ == '__main__':
-    consumer = KafkaConsumer(bootstrap_servers='localhost:29092')
-    producer = KafkaProducer(bootstrap_servers='localhost:29092')
+    consumer = KafkaConsumer(bootstrap_servers='localhost:29092', api_version=(0, 10, 1))
+    producer = KafkaProducer(bootstrap_servers='localhost:29092', api_version=(0, 10, 1))
     consumer.subscribe('new-order')
     start_decider()
