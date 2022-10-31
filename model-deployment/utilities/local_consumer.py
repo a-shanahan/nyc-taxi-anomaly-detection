@@ -14,6 +14,7 @@ def start_consumer(topic):
             continue
         try:
             for _, j in mess.items():
+                print('J: ', j)
                 for message in j:
                     logger.info(f'Topic: {topic} Value: {message.value}')
         except NoBrokersAvailable as e:

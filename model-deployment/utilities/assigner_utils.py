@@ -3,10 +3,12 @@ import numpy as np
 import numpy.typing as npt
 import mysql.connector as connector
 from sqlalchemy import create_engine
+from kafka import KafkaProducer
 import sys
 from math import radians, cos, sin, asin, sqrt
 import pandas as pd
 from typing import Tuple, Dict
+import json
 
 
 class AssignerUtils:
@@ -17,6 +19,8 @@ class AssignerUtils:
         self.dropped_order = 0
         self.refuse_order = 0
         self.late_pickup = 0
+        self.producer = KafkaProducer(bootstrap_servers='localhost:29092')
+
         self._db_connection()
         if load:
             self._load_data()
@@ -159,23 +163,17 @@ class AssignerUtils:
         ])
         return obs
 
-    def driver_assignment(self, assignment: str, driver: str):
+    def driver_assignment(self, status: str, driver: str) -> None:
         """
         Once an order is assigned to a driver change their availability status.
-        :param assignment: Y or N depending on assignment
+        :param status: Y or N depending on assignment
         :param driver: Driver ID
         """
-        self._query_execute("UPDATE availability SET Available = '" + assignment +
-                            "' WHERE Driver = '" + driver + "'")
-
-        # Drivers only become available when journey is completed
-        if assignment == 'Y':
-            self._query_execute("UPDATE stats SET Total_Fare = "
-                                "Total_Fare + '" + self.order.get("fare") +
-                                "' WHERE Driver = '" + driver + "'")
-            self._query_execute("UPDATE availability SET Location = '" +
-                                self.order.get('drop-off_location') +
-                                "' WHERE Driver = '" + driver + "'")
+        msg = {'driver': driver,
+               'status': status,
+               'order': self.order}
+        ack = self.producer.send('driver-status', json.dumps(msg).encode('utf-8'))
+        _ = ack.get()
 
     def random_driver_assignment(self) -> Tuple:
         """

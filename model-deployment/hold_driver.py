@@ -4,6 +4,7 @@ import json
 import configparser
 from typing import Dict
 import numpy as np
+import pandas as pd
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.errors import NoBrokersAvailable
 from stable_baselines3 import PPO
@@ -47,16 +48,21 @@ def start_holding_pool():
             for _, j in mess.items():
                 for message in j:
                     order = json.loads(message.value.decode('utf-8'))
-                    logger.info(f'Topic: "hold-driver" Value: {order}')
+                    journey_time = pd.to_datetime(order['order']['tpep_dropoff_datetime']) - pd.to_datetime(order['order']['tpep_pickup_datetime'])
                     drivers.update({order['driver']: {
-                                        'time_delta': order['time_delta'],
-                                        'order': order['order']}})
-                    assigner.driver_assignment('N', order['driver'])
+                        'journey_time': journey_time.seconds,
+                        'order': order['order']}})
                     remove_drivers = []
                     for key, value in drivers.items():
-                        drivers[key]['time_delta'] = drivers[key]['time_delta'] - increment
-                        if drivers[key]['time_delta'] <= 0:
-                            producer_format('journey-finished', drivers[key]['order'])
+                        drivers[key]['journey_time'] = drivers[key]['journey_time'] - increment
+                        if drivers[key]['journey_time'] <= 0:
+                            print('Driver finished: ', key)
+                            producer_format('completed-journey', drivers[key]['order'])
+                            # Set driver status to available
+                            msg = {'driver': key,
+                                   'status': 'Y',
+                                   'order': drivers[key]['order']}
+                            producer_format('driver-status', msg)
                             remove_drivers.append(key)
                     for driver in remove_drivers:
                         del drivers[driver]

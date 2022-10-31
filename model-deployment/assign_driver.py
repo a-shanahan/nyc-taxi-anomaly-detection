@@ -78,9 +78,13 @@ def start_decider():
                                'Message': 'Sorry all our drivers are currently busy'}
                         producer_format('customer-response', msg)
                     else:
+                        if time_delta < 0:
+                            resp = f'Your driver {driver} will be {abs(time_delta)} minutes late'
+                        else:
+                            resp = f'Your driver {driver} will be along in {time_delta} minutes'
                         msg = {'uid': order['uid'],
                                'Response': 'accepted',
-                               'Message': f'Your driver {driver} will be along in {time_delta} minutes'}
+                               'Message': resp}
                         # Notify customer
                         producer_format('customer-response', msg)
                         # Hold driver for period of time before releasing journey details. Not needed in
