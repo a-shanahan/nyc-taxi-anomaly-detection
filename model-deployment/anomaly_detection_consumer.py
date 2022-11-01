@@ -4,18 +4,23 @@ from kafka.errors import NoBrokersAvailable
 import tensorflow as tf
 import numpy as np
 import json
+from typing import Dict, Any
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
 autoencoder = tf.keras.models.load_model('../anomaly-development/scripts/autoencoder_fraud.tf/')
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger()
 
-
-def anomaly_detection(data, threshold=0.074):
+def anomaly_detection(data: Dict, threshold: float = 0.074) -> Any:
+    """
+    Determine if journey profile is anomalous
+    :param data: Journey data
+    :param threshold: Anomaly threshold
+    :return: Anomalous/Normal flag
+    """
     logger.info(f'uid: {data["uid"]}')
+    # Remove UID from journey profile as model has not been trained on this
     data.pop('uid')
     model_input = np.asarray([value for key, value in data.items()])
     try:
@@ -42,6 +47,7 @@ def start_consumer():
                     message_decode = json.loads(message.value.decode())
                     uid = message_decode['uid']
                     prediction = anomaly_detection(message_decode)
+                    # Send notification to either normal or anomalous topic
                     if prediction:
                         ack = producer.send('anomalous-journey', uid.encode('utf-8'))
                         _ = ack.get()

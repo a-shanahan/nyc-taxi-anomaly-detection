@@ -13,6 +13,7 @@ from utilities.assigner_utils import *
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
+# Load in MariaDB configuration
 configParser = configparser.ConfigParser()
 configFilePath = "data/db_config.ini"
 configParser.read(configFilePath)
@@ -22,8 +23,10 @@ db_config = {'user': configParser['MariaDB']['user'],
              'host': configParser['MariaDB']['host'],
              'database': configParser['MariaDB']['database']}
 
+# Load driver assigner model
 model = PPO.load("../assignment_development/model/taxi-assigner")
 
+# Initialise assigner model and pass in MAriaDB config
 assigner = AssignerUtils(db_config)
 
 
@@ -49,10 +52,12 @@ def start_decider():
                     time_delta = None
                     order = json.loads(message.value.decode('utf-8'))
                     logger.info(f'Topic: "new-order" Value: {order}')
+
                     customer_order = {"PULocation": order['PULocationID'],
                                       "DOLocation": order['DOLocationID'],
                                       "pickup_time": random.randint(5, 30),
                                       "fare": order['fare_amount']}
+
                     # Generate current environment observation and choose driver
                     obs = assigner.customer_order(customer_order)
                     obs = np.reshape(obs, (1, 8))
@@ -87,11 +92,10 @@ def start_decider():
                                'Message': resp}
                         # Notify customer
                         producer_format('customer-response', msg)
-                        # Hold driver for period of time before releasing journey details. Not needed in
-                        # production system
+                        # Hold driver for period of time before releasing journey details. This is
+                        # the delta between start and finish time
                         hold_msg = {'order': order,
-                                    'driver': driver,
-                                    'time_delta': time_delta}
+                                    'driver': driver}
                         producer_format('hold-driver', hold_msg)
         except NoBrokersAvailable as e:
             logger.debug(f"Error: {e}")

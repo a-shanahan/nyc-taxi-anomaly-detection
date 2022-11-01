@@ -56,7 +56,7 @@ services:
       - SPARK_LOCAL_IP=spark-master
       - SPARK_WORKLOAD=master
     volumes:
-      - ../model-development/scripts/data:/data
+      - ../anomaly-development/scripts/data:/data
       - ./stream-setup:/stream-setup
 
   spark-worker-a:

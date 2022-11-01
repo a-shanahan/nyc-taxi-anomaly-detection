@@ -48,21 +48,27 @@ def start_holding_pool():
             for _, j in mess.items():
                 for message in j:
                     order = json.loads(message.value.decode('utf-8'))
-                    journey_time = pd.to_datetime(order['order']['tpep_dropoff_datetime']) - pd.to_datetime(order['order']['tpep_pickup_datetime'])
+                    # Calculate journey time
+                    journey_time = pd.to_datetime(order['order']['tpep_dropoff_datetime']) - \
+                                   pd.to_datetime(order['order']['tpep_pickup_datetime'])
+                    # Create dictionary to store driver details
                     drivers.update({order['driver']: {
-                        'journey_time': journey_time.seconds,
+                        'journey_time': journey_time.seconds/60,  # TODO: Change back to seconds
                         'order': order['order']}})
                     remove_drivers = []
+                    # Iterate through driver dictionary and if
                     for key, value in drivers.items():
                         drivers[key]['journey_time'] = drivers[key]['journey_time'] - increment
                         if drivers[key]['journey_time'] <= 0:
-                            print('Driver finished: ', key)
+                            logger.info(f'Driver finished: {key}')
+                            # Send journey details to Spark for processing
                             producer_format('completed-journey', drivers[key]['order'])
-                            # Set driver status to available
+                            # Change driver status to available
                             msg = {'driver': key,
                                    'status': 'Y',
                                    'order': drivers[key]['order']}
                             producer_format('driver-status', msg)
+                            # Add driver to list for removal
                             remove_drivers.append(key)
                     for driver in remove_drivers:
                         del drivers[driver]

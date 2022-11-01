@@ -9,6 +9,8 @@ import configparser
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
+# Load in MAriaDB configuration
+
 configParser = configparser.ConfigParser()
 configFilePath = "data/db_config.ini"
 configParser.read(configFilePath)
@@ -18,14 +20,13 @@ db_config = {'user': configParser['MariaDB']['user'],
              'host': configParser['MariaDB']['host'],
              'database': configParser['MariaDB']['database']}
 
+# Connect to MariaDB
 conn = connector.connect(host=db_config['host'],
                          user=db_config['user'],
                          password=db_config['password'],
                          database=db_config['database'])
-
 uri = f"mysql+mysqlconnector://{db_config.get('user')}:{db_config.get('password')}@" \
       f"{db_config.get('host')}/{db_config.get('database')}"
-
 engine = create_engine(uri)
 # Get Cursor
 cursor = conn.cursor()
@@ -48,11 +49,13 @@ def start_consumer():
             for _, j in mess.items():
                 for message in j:
                     msg = json.loads(message.value.decode())
-                    print('Message: ', msg)
+                    logger.info(f'Message: {msg}')
+                    # Update driver availability
                     query_execute("UPDATE availability SET Available = '" + msg['status'] +
                                   "' WHERE Driver = '" + msg['driver'] + "'")
 
                     # Drivers only become available when journey is completed
+                    # If the driver has just completed a journey, update their stats
                     if msg['status'] == 'Y':
                         query_execute("UPDATE stats SET Total_Fare = "
                                       "Total_Fare + '" + str(msg['order'].get("fare_amount")) +
