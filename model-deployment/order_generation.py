@@ -1,6 +1,10 @@
+"""
+This script reads data from a nyc taxi parquet file and produces messages to the 'new-order' Kafka topic
+for taxi driver assignment. Time deltas between orders are calculated and this value is used to determine
+how long the for loop should wait between publishing a new message.
+"""
 import pandas as pd
 import time
-import random
 from kafka import KafkaProducer
 import uuid
 import json
@@ -32,7 +36,6 @@ for index, row in tmp.iterrows():
     _wait = msg['order_delta']
     del msg['order_delta']
     msg.update({'uid': uuid.uuid4().hex})
-    print('Message: ', msg)
     ack = producer.send('new-order', json.dumps(msg).encode('utf-8'))
     metadata = ack.get()
     try:

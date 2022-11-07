@@ -1,5 +1,9 @@
+"""
+This script monitors the 'driver-status' Kafka topic and updates the Availability and Stats result tables
+to reflect a drivers' current availability and their fare/journey stats.
+"""
 import logging
-from kafka import KafkaConsumer, KafkaProducer
+from kafka import KafkaConsumer
 from kafka.errors import NoBrokersAvailable
 import mysql.connector as connector
 from sqlalchemy import create_engine
@@ -49,7 +53,6 @@ def start_consumer():
             for _, j in mess.items():
                 for message in j:
                     msg = json.loads(message.value.decode())
-                    logger.info(f'Message: {msg}')
                     # Update driver availability
                     query_execute("UPDATE availability SET Available = '" + msg['status'] +
                                   "' WHERE Driver = '" + msg['driver'] + "'")
@@ -70,6 +73,5 @@ def start_consumer():
 
 if __name__ == '__main__':
     consumer = KafkaConsumer(bootstrap_servers='localhost:29092')
-    producer = KafkaProducer(bootstrap_servers='localhost:29092')
     consumer.subscribe(['driver-status'])
     start_consumer()

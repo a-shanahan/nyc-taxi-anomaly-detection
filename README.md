@@ -1,61 +1,35 @@
-# NYC Taxi Anomaly Detection
-This project uses PySpark to process the NYC taxi dataset and then trains an autoencoder using TensorFlow 
-to detect anomalous journeys based on reconstruction error. EDA is done using the Koalas library and is used 
-to inform data quality decisions taken during processing. 
+# NYC Taxi Platform
+This project replicates a taxi ordering service using the NYC taxi dataset. Customer orders 
+are assigned to drivers that is trained to balance equal utilisation against reduced pickup times.   
+Completed journeys are checked using an anomaly detector and published to relevant Kafka topics for 
+downstream monitoring.
 
-The docker compose will create the following containers:
+There are 3 main directories:
+- Anomaly Development: Autoencoder model training and evaluation
+- Assignment Development: PPO model training and evaluation
+- Model Deployment: Fully functional system
 
-| container    | Exposed ports |
-|--------------|---------------|
-| spark-master | 9090          |
+For a detailed description please refer to the ReadMe documents within each directory.
 
-## Installation
-The following steps will set up the network and generate example data:
+## HLD
 
-### Pre-requisites
-- Docker
-- Docker-compose
+C4 modelling is used to describe and define architectures in an abstract and simple way. 
+It is a different way to approach modelling which focuses on four C’s: 
 
-### Docker compose
-To run the network in detached mode use the ```-d``` flag at the end of the command:  
-```shell
-docker-compose up
-```
+- Context
+- Containers
+- Components
+- Code
 
-### Jupyter Notebooks
-Jupyter Notebooks has been pre-installed on the master node. 
-To start a notebook session, connect to the docker container and start a pyspark session.
+The simplest view is referred to as a **Context** diagram. This shows how users interact with the 
+system and how software fits together.
 
-```shell
-docker exec -it <docker container name> bash
-pyspark
-```
-The notebook URL will be displayed within the terminal and can be accessed via your 
-local browser using the ```0.0.0.0``` ip address. 
+In this system we have two main actors, the Taxi Driver and the Customer with the Taxi Driver executing two 
+main actions.
 
-### Data download
-Data can be downloaded using the scripts found in [scripts](scripts/data_download) directory. These are the 
-same as those detailed in this [repo](https://github.com/toddwschneider/nyc-taxi-data)
+![alt text](images/C4-Context.png "C4 Context")
 
-### Data Processing
-```shell
-spark-submit --master spark://spark-master:7077 --driver-memory 3G --executor-memory 3G /scripts/data_transformation.py
-```
+The **Container** diagram drills down to the next level of the system and details technology choices. 
+We have used Kafka as the messaging queue, PySpark for data processing and MariaDB to store results. 
 
-## Anomaly Detection
-
-A simple Autoencoder is used to detect anomalous taxi journeys. The architecture and training 
-files can be found in the [script](scripts) directory. The training process has been set up 
-to simulate working in a big data environment so parquet files are streamed to the model during 
-training as a tensorflow generator. 
-
-The training loss for a model trained on the 2019 data is below:
-
-![alt text](graphs/TrainingLoss.png "Training Loss")
-
-A comparison of the input and reconstructed signal:
-
-![alt text](graphs/InputReconstruction.png "Input Reconstruction")
-
-Setting the error threshold as mean +1 standard deviation:
-![alt text](graphs/ErrorThreshold.png "Error Threshold")
+![alt text](images/C4-Container.png "C4 Container")

@@ -1,3 +1,9 @@
+"""
+This script monitors the 'new-order' Kafka topic and assigns taxi drivers to new customer orders.
+It uses the AssignerUtils class to connect to the results store and determine which strategy should
+be used to assign a driver. Depending on the chosen action a customer response is created and if the
+order is accepted, the details are sent to the 'hold'driver' topic.
+"""
 import logging
 import argparse
 import json
@@ -30,7 +36,7 @@ model = PPO.load("../assignment_development/model/taxi-assigner")
 assigner = AssignerUtils(db_config)
 
 
-def producer_format(topic: str, message: Dict):
+def producer_format(topic: str, message: Dict) -> None:
     """
     Send message to Kafka topic
     :param topic: Kafka Topic to send message

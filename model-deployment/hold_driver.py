@@ -1,3 +1,9 @@
+"""
+This script monitors the 'hold-driver' Kafka topic and stores journey details in a dictionary. A journey delta
+is calculated which specifies how long a driver should be held for and this counter is reduced at a steady
+time step. Once the time has been reduced to 0 the journey is submitted to the 'completed-journey' topic for
+processing. In a live system this script would not be needed.
+"""
 import logging
 import argparse
 import json
@@ -25,7 +31,7 @@ db_config = {'user': configParser['MariaDB']['user'],
 assigner = AssignerUtils(db_config)
 
 
-def producer_format(topic: str, message: Dict):
+def producer_format(topic: str, message: Dict) -> None:
     """
     Send message to Kafka topic
     :param topic: Kafka Topic to send message

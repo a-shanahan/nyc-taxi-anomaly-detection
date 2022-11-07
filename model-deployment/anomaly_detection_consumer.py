@@ -1,3 +1,9 @@
+"""
+This script monitors the 'completed-journeys' Kafka topic for completed taxi journeys.
+The data has already been processed into the required format so can be passed directly
+to the trained autoencoder model which is loaded from another directory. The predicted label
+is used to determine which Kafka topic is subsequently notified.
+"""
 import logging
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.errors import NoBrokersAvailable

@@ -1,61 +1,55 @@
-# NYC Taxi Anomaly Detection
-This project uses PySpark to process the NYC taxi dataset and then trains an autoencoder using TensorFlow 
-to detect anomalous journeys based on reconstruction error. EDA is done using the Koalas library and is used 
-to inform data quality decisions taken during processing. 
+# NYC Taxi System Deployment
 
-The docker compose will create the following containers:
+Directory contents:
 
-| container    | Exposed ports |
-|--------------|---------------|
-| spark-master | 9090          |
+- Data: MariaDB config file
+- Spark-cluster: Spark docker file and start up script
+- Stream-setup: PySpark script to be executed on Spark cluster
+- Utilities: Helper functions including assigner model, db connection and kafka monitoring.
 
-## Installation
-The following steps will set up the network and generate example data:
+The following steps will set up the network and then start the data streaming and processing.
 
-### Pre-requisites
+## Pre-requisites
 - Docker
 - Docker-compose
 
-### Docker compose
+## Docker compose
+
+The [docker compose](model-deployment/docker-compose.yml) file will create the following containers:
+
+| Container    | Exposed ports  |
+|--------------|----------------|
+| spark-master | 9090, 7077     |
+| spark-worker | 9091, 7002     |
+| kafka        | 29002, 9092    |
+| zookeeper    | 22181          |
+| mariadb      | 3306           |
+
 To run the network in detached mode use the ```-d``` flag at the end of the command:  
 ```shell
 docker-compose up
 ```
 
-### Jupyter Notebooks
-Jupyter Notebooks has been pre-installed on the master node. 
-To start a notebook session, connect to the docker container and start a pyspark session.
+## Data streaming and processing
+To replicate a system where new orders are raised and completed journeys are submitted a number of Python 
+scripts have been developed. First, create a virtual environment and install the required libraries:
 
 ```shell
-docker exec -it <docker container name> bash
-pyspark
+python3 -m venv venv
+source venv/bin/activate
+pip3 install -r requirements.txt
 ```
-The notebook URL will be displayed within the terminal and can be accessed via your 
-local browser using the ```0.0.0.0``` ip address. 
 
-### Data download
-Data can be downloaded using the scripts found in [scripts](scripts/data_download) directory. These are the 
-same as those detailed in this [repo](https://github.com/toddwschneider/nyc-taxi-data)
-
-### Data Processing
+Each script can then be started using:
 ```shell
-spark-submit --master spark://spark-master:7077 --driver-memory 3G --executor-memory 3G /scripts/data_transformation.py
+python3 <script name>/.py
 ```
 
-## Anomaly Detection
+A summary of each script is provided at the top of each file but a high level overview is provided below:
+- Anomaly detection consumer: Monitors completed journeys for anomalies
+- Assign driver: Assigns drivers to customer orders
+- Driver status: Updates database to reflect current driver availability
+- Hold driver: Generates completed journeys at calculated intervals
+- Order generation: Reads data from a NYC taxi parquet file to replicate new customer orders and journey details
 
-A simple Autoencoder is used to detect anomalous taxi journeys. The architecture and training 
-files can be found in the [script](scripts) directory. The training process has been set up 
-to simulate working in a big data environment so parquet files are streamed to the model during 
-training as a tensorflow generator. 
-
-The training loss for a model trained on the 2019 data is below:
-
-![alt text](graphs/TrainingLoss.png "Training Loss")
-
-A comparison of the input and reconstructed signal:
-
-![alt text](graphs/InputReconstruction.png "Input Reconstruction")
-
-Setting the error threshold as mean +1 standard deviation:
-![alt text](graphs/ErrorThreshold.png "Error Threshold")
+Scripts can be started in any order but it is recommended that the order_generation.py file is started last. 
