@@ -1,3 +1,8 @@
+"""
+This script contains PySpark code to normalise the NYC taxi dataset ready for use with the downstream model.
+Categorical data is one hot encoded and continuous data is normalised between 0-1. Normalisation is done using
+Pipelines which are saved for use during inference. Output data is saved using Month as the partition.
+"""
 import glob
 import random
 from pyspark.sql import SparkSession

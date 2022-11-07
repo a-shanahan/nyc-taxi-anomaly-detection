@@ -1,3 +1,6 @@
+"""
+This script trains the Autoencoder model using a Tensorflow data generator to stream Parquet files.
+"""
 import pandas as pd
 from tensorflow.keras import layers, losses
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping

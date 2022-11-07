@@ -1,3 +1,6 @@
+"""
+This scripts calculates the reconstruction error that is used to determine if a journey is anomalous.
+"""
 import tensorflow as tf
 import pandas as pd
 import numpy as np

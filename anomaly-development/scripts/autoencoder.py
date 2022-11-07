@@ -1,3 +1,6 @@
+"""
+Main Autoencoder model class.
+"""
 import tensorflow as tf
 from tensorflow.keras import layers, losses
 from tensorflow.keras.models import Model

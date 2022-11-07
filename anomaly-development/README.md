@@ -3,6 +3,12 @@ This project uses PySpark to process the NYC taxi dataset and then trains an aut
 to detect anomalous journeys based on reconstruction error. EDA is done using the Koalas library and is used 
 to inform data quality decisions taken during processing. 
 
+Directory contents:
+- Data processing: Exploratory data analysis and processing of NYC dataset using Spark
+- Graphs: Model training and evaluation images
+- Scripts: Autoencoder model training and evaluation
+- Spark-cluster: Spark dockerfile and start up script
+
 The docker compose will create the following containers:
 
 | container    | Exposed ports |
