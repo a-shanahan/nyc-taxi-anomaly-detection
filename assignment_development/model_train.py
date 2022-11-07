@@ -1,3 +1,7 @@
+"""
+This script imports the AssignmentEnv model and trains it. The final model and policy is saved for use
+during inference.
+"""
 import pandas as pd
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3 import PPO

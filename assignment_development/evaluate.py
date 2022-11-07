@@ -1,3 +1,7 @@
+"""
+This script evaluates the assigner model by running a number of simulations and comparing the output
+to a number of naive choices.
+"""
 import pandas as pd
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv

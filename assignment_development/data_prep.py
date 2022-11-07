@@ -1,3 +1,6 @@
+"""
+This script generates synthetic data for use training the assigner model.
+"""
 import pandas as pd
 import uuid
 import random

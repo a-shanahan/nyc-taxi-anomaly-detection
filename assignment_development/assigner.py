@@ -1,3 +1,8 @@
+"""
+This script creates an Environment for a PPO reinforcement learning model to be trained for the
+purposes of assigning taxi drivers to customer orders. Penalties and rewards are specified as well as
+other environment conditions.
+"""
 import random
 from typing import Tuple
 import gym
