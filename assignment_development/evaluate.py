@@ -30,7 +30,7 @@ for j in range(20):
     while True:
         tmp = env.render()
         action, _states = model.predict(obs)
-        actions.append(list(action))
+        actions.append(str(action))
         obs, rewards, done, info = env.step(action)
         if done:
             rl_agent.append(tmp)
@@ -72,6 +72,7 @@ for j in range(20):
             random_choice.append(tmp)
             break
 
+df_rl = pd.DataFrame(rl_agent).describe()
 df_util = pd.DataFrame(even_utilisation).describe()
 df_closest = pd.DataFrame(closest_driver).describe()
 df_any = pd.DataFrame(any_available).describe()
