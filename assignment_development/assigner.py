@@ -120,8 +120,8 @@ class AssignmentEnv(gym.Env):
         # Create obs and normalise to between 0-1
         obs = np.array([
             self.fulfilled_order / self.total_orders,  # Fulfilled order %
-            self.order.get("pickup_time") / 15,  # Max pickup time is 20 mins
-            self.order.get("drop-off_time") / (30 + self.order.get("pickup_time")),
+            self.order.get("pickup_time") / 30,  # Max pickup time is 30 mins
+            self.order.get("drop-off_time") / (self.order.get("drop-off_time") + self.order.get("pickup_time")),
             self.dropped_order / self.total_orders,  # Dropped order %,
             self.rejected_order / self.total_orders,  # Dropped order %,
             self.df_stats.Utilisation.max() - self.df_stats.Utilisation.min(),  # Spread of driver utilisation
