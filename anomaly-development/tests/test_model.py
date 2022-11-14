@@ -16,16 +16,11 @@ def test_autoencoder():
     Checks if output layer of model is of the correct shape
     :return:
     """
-    with open('../anomaly-development/scripts/data/val_files.txt', 'r') as f:
-        val_file_names = f.read().splitlines()
-    file = os.path.join('../anomaly-development/scripts', val_file_names[0])
-    tmp = pd.read_parquet(file, engine='pyarrow')
-    dta = np.asarray(tmp).reshape(len(tmp), 1, 56)
-    tf_data = tf.convert_to_tensor(dta[0], dtype=tf.float32)
-    tf_data = tf.reshape(tf_data, (1, 1, 56))
     expected_shape = (1, 1, 56)
+    input_data = tf.zeros(expected_shape,
+                          dtype=tf.dtypes.float32)
     model = Autoencoder(8)
-    assert expected_shape == model.call(tf_data).shape
+    assert expected_shape == model.call(input_data).shape
 
 
 test_autoencoder()
